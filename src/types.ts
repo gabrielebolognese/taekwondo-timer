@@ -132,6 +132,10 @@ export interface Week {
 export interface Month {
   month: number;
   target: string;
+  /** The first sentence of the target, split into separate goals. */
+  goals: string[];
+  /** The rest of the target, e.g. "Expect the ball to go up most weeks." */
+  targetNote: string;
   weeks: Week[];
 }
 

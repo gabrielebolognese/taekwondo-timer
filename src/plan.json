@@ -32,6 +32,10 @@
   {
    "month": 1,
    "target": "clean 480 and 540 on video (high chamber, full extension, 540 lands on the kicking leg). Expect the ball to go up most weeks.",
+   "goals": [
+    "Clean 480 and 540 on video (high chamber, full extension, 540 lands on the kicking leg)"
+   ],
+   "targetNote": "Expect the ball to go up most weeks.",
    "weeks": [
     {
      "week": 1,
@@ -3526,6 +3530,11 @@
   {
    "month": 2,
    "target": "540 landed 8/10, slow kicks touching the ball at chest height. Expect the ball to go up most weeks.",
+   "goals": [
+    "540 landed 8/10",
+    "Slow kicks touching the ball at chest height"
+   ],
+   "targetNote": "Expect the ball to go up most weeks.",
    "weeks": [
     {
      "week": 1,
@@ -7108,6 +7117,11 @@
   {
    "month": 3,
    "target": "first landed 720s on a mat, fast kicks touching the ball at chest height. Last month of the fast curve.",
+   "goals": [
+    "First landed 720s on a mat",
+    "Fast kicks touching the ball at chest height"
+   ],
+   "targetNote": "Last month of the fast curve.",
    "weeks": [
     {
      "week": 1,
@@ -10642,6 +10656,11 @@
   {
    "month": 4,
    "target": "720 landed 5/10, first 720s touching the ball at hip height. From here expect the ball to go up every 2 to 3 weeks, not every week.",
+   "goals": [
+    "720 landed 5/10",
+    "First 720s touching the ball at hip height"
+   ],
+   "targetNote": "From here expect the ball to go up every 2 to 3 weeks, not every week.",
    "weeks": [
     {
      "week": 1,
@@ -14128,6 +14147,12 @@
   {
    "month": 5,
    "target": "720 landed 7/10, 720 to ball above hip height, standing kicks at chest height with a 2 s freeze.",
+   "goals": [
+    "720 landed 7/10",
+    "720 to ball above hip height",
+    "Standing kicks at chest height with a 2 s freeze"
+   ],
+   "targetNote": "",
    "weeks": [
     {
      "week": 1,
@@ -17614,6 +17639,12 @@
   {
    "month": 6,
    "target": "720 landed 8/10, 720 to ball at chest height, fast kicks above chest height. Power volume drops about 30%, effort stays max, tricking volume goes up.",
+   "goals": [
+    "720 landed 8/10",
+    "720 to ball at chest height",
+    "Fast kicks above chest height"
+   ],
+   "targetNote": "Power volume drops about 30%, effort stays max, tricking volume goes up.",
    "weeks": [
     {
      "week": 1,

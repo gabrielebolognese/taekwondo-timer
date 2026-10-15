@@ -316,6 +316,24 @@ function parseExercises(name: string, raw: string, ctx: Ctx): Exercise[] {
   fail(`Cannot parse "${raw}" for "${name}"`);
 }
 
+/** "a, b (x, y), c. Context." -> goals [a, b (x, y), c] and note "Context." */
+function parseGoals(target: string): { goals: string[]; targetNote: string } {
+  let depth = 0;
+  let end = target.length;
+  for (let i = 0; i < target.length; i++) {
+    const ch = target[i];
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === '.' && depth === 0 && /^\s+[A-Z]/.test(target.slice(i + 1))) {
+      end = i;
+      break;
+    }
+  }
+  const goals = splitTop(target.slice(0, end).replace(/\.$/, '')).map(cap);
+  if (!goals.length) fail(`No goals in target "${target}"`);
+  return { goals, targetNote: target.slice(end + 1).trim() };
+}
+
 function deload(ex: Exercise): Exercise {
   const half = (n: number) => Math.ceil(n / 2);
   const e = structuredClone(ex);
@@ -369,7 +387,8 @@ function parseTraining(md: string) {
 
   for (const sec of all.filter((s) => /^Month \d+$/i.test(s.heading))) {
     const month = Number(sec.heading.replace(/\D/g, ''));
-    const target = paragraphs(sec.lines).find((l) => /^Target:/i.test(l))?.replace(/^Target:\s*/i, '') ?? '';
+    const target = paragraphs(sec.lines).find((l) => /^Target:/i.test(l))?.replace(/^Target:\s*/i, '') ?? fail(`Month ${month} has no Target: line`);
+    const { goals, targetNote } = parseGoals(target);
     const table = tables(sec.lines)[0] ?? fail(`Month ${month} has no table`);
     const monthDays = new Map<number, Exercise[]>();
     for (const [dayCell, name, doCell] of table.slice(1)) {
@@ -398,7 +417,7 @@ function parseTraining(md: string) {
       });
       return { week, deload: isDeload, days };
     });
-    months.push({ month, target, weeks });
+    months.push({ month, target, goals, targetNote, weeks });
   }
   if (months.length !== 6) fail(`Expected 6 months, found ${months.length}`);
 

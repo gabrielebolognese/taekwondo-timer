@@ -1,31 +1,45 @@
 import { useEffect, useState } from 'react';
 import { useStored } from './lib/hooks';
-import { getDay, nextPos, START, type GtgSlot, type Pos } from './lib/plan';
+import { getDay, gtgDay, nextPos, START, type GtgSlot, type Pos } from './lib/plan';
 import { setRunnerOpen } from './lib/pwa';
 import { back, counts } from './lib/run';
 import { buildGtg, buildSession, type Run } from './lib/steps';
-import { todayKey, type GtgDone, type LogEntry, type TestEntry } from './lib/storage';
+import { goalKey, todayKey, type Completion, type GoalTicks, type GtgLog, type TestEntry } from './lib/storage';
 import { Gtg } from './screens/Gtg';
 import { Home } from './screens/Home';
+import { Progress } from './screens/Progress';
 import { Runner } from './screens/Runner';
 import { TestForm, Tests } from './screens/Tests';
 
-type Tab = 'train' | 'gtg' | 'tests';
+type Tab = 'train' | 'gtg' | 'tests' | 'progress';
 type TestDraft = Partial<TestEntry> & { month: number; week: number };
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'train', label: 'Train' },
   { id: 'gtg', label: 'GTG' },
   { id: 'tests', label: 'Tests' },
+  { id: 'progress', label: 'Progress' },
 ];
+
+const samePos = (a: Pos, b: Pos) => a.month === b.month && a.week === b.week && a.day === b.day;
+
+/** Main exercises the run reached (or ended with "Output dropped"). Warm-up items are not counted. */
+function exercisesDone(run: Run): string[] {
+  const visited = new Set([...run.history, run.idx]);
+  const reached = new Set(run.steps.filter((_, i) => visited.has(i)).map((s) => s.ex));
+  return run.exercises
+    .filter((e, i) => !e.warmup && (reached.has(i) || run.dropped.includes(i)))
+    .map((e) => e.name);
+}
 
 export function App() {
   const [tab, setTab] = useStored<Tab>('tab', 'train');
   const [pos, setPos] = useStored<Pos>('pos', START);
   const [session, setSession] = useStored<Run | null>('run', null);
-  const [log, setLog] = useStored<LogEntry[]>('log', []);
+  const [log, setLog] = useStored<Completion[]>('log', []);
   const [tests, setTests] = useStored<TestEntry[]>('tests', []);
-  const [gtgDone, setGtgDone] = useStored<GtgDone>('gtgDone', {});
+  const [gtg, setGtg] = useStored<GtgLog>('gtg', {});
+  const [ticks, setTicks] = useStored<GoalTicks>('goals', {});
   const [gtgRun, setGtgRun] = useState<Run | null>(null);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [testDraft, setTestDraft] = useState<TestDraft | null>(null);
@@ -44,51 +58,64 @@ export function App() {
   const runnerOpen = (sessionOpen && !!session) || !!gtgRun;
   useEffect(() => setRunnerOpen(runnerOpen), [runnerOpen]);
 
-  // GTG follows the session trained today (its day decides the slot column), else the current day.
-  const todaySession = log.findLast((l) => l.date === today && !l.skipped);
-  const gtgPos = todaySession?.pos ?? pos;
-  const doneSlots = gtgDone[today] ?? [];
+  // GTG follows the plan day completed today (its day decides the slot column), else the current day.
+  const todayDone = log.findLast((c) => c.date === today);
+  const gtgPos = todayDone?.pos ?? pos;
+  const doneSlots = gtg[today]?.done ?? [];
 
   const upsertTest = (t: TestEntry) => setTests((list) => [...list.filter((x) => x.id !== t.id), t]);
 
-  const advanceFrom = (from: Pos) => {
-    const n = nextPos(from);
+  /** Records a completed plan day and moves to the next one, with week and month rollover. */
+  const complete = (entry: Omit<Completion, 'date' | 'at'>) => {
+    setLog((l) => [...l, { date: todayKey(), at: Date.now(), ...entry }]);
+    const n = nextPos(entry.pos);
     if (n) setPos(n);
   };
 
   const finishSession = (run: Run, test?: TestEntry) => {
-    const entry: LogEntry = {
-      date: todayKey(),
-      at: Date.now(),
+    complete({
       pos: run.pos,
       title: run.title,
       minutes: Math.round((Date.now() - run.startedAt) / 60_000),
       dropped: run.dropped.map((i) => run.exercises[i].name),
-    };
-    setLog((l) => [...l, entry].slice(-500));
+      done: exercisesDone(run),
+    });
     if (test) upsertTest(test);
-    advanceFrom(run.pos);
     setSession(null);
     setSessionOpen(false);
     setTab('train');
   };
 
-  const markDayDone = () => {
-    const entry: LogEntry = {
-      date: todayKey(), at: Date.now(), pos, title: `Day ${pos.day} · ${getDay(pos).title}`, minutes: 0, dropped: [], skipped: true,
-    };
-    setLog((l) => [...l, entry].slice(-500));
-    advanceFrom(pos);
+  const markCompleted = () => {
+    const day = getDay(pos);
+    complete({ pos, title: `Day ${pos.day} · ${day.title}`, manual: true, dropped: [], done: day.exercises.map((e) => e.name) });
+    // A half-run session for the same day is superseded by the completion.
+    if (session && samePos(session.pos, pos)) setSession(null);
+  };
+
+  const undoLastCompletion = () => {
+    const last = log.at(-1);
+    if (!last) return;
+    setLog((l) => l.slice(0, -1));
+    setPos(last.pos);
   };
 
   const setSlotDone = (index: number, on: boolean, date = today) => {
-    setGtgDone((all) => {
-      const kept: GtgDone = {};
-      const cutoff = todayKey(new Date(Date.now() - 30 * 86_400_000));
-      for (const [d, list] of Object.entries(all)) if (d >= cutoff) kept[d] = list;
-      const list = kept[date] ?? [];
-      kept[date] = on ? [...new Set([...list, index])] : list.filter((i) => i !== index);
-      return kept;
+    const total = gtgDay(gtgPos).slots.length;
+    setGtg((all) => {
+      const list = all[date]?.done ?? [];
+      const done = on ? [...new Set([...list, index])] : list.filter((i) => i !== index);
+      return { ...all, [date]: { done, total } };
+    });
+  };
+
+  const toggleGoal = (month: number, goal: string) => {
+    const key = goalKey(month, goal);
+    setTicks((t) => {
+      const nextTicks = { ...t };
+      if (nextTicks[key]) delete nextTicks[key];
+      else nextTicks[key] = true;
+      return nextTicks;
     });
   };
 
@@ -137,8 +164,9 @@ export function App() {
         <Home
           pos={pos}
           run={session}
-          today={log.findLast((l) => l.date === today)}
-          lastLog={log.at(-1)}
+          today={todayDone}
+          last={log.at(-1)}
+          completedHere={log.findLast((c) => samePos(c.pos, pos))}
           onSetPos={setPos}
           onStart={() => {
             setSession(buildSession(pos));
@@ -146,7 +174,8 @@ export function App() {
           }}
           onResume={() => setSessionOpen(true)}
           onDiscard={() => setSession(null)}
-          onMarkDone={markDayDone}
+          onMarkCompleted={markCompleted}
+          onUndo={undoLastCompletion}
           onLogTest={() => setTestDraft({ month: pos.month, week: pos.week })}
         />
       )}
@@ -165,6 +194,9 @@ export function App() {
           onAdd={() => setTestDraft({ month: pos.month, week: pos.week })}
           onEdit={(e) => setTestDraft(e)}
         />
+      )}
+      {tab === 'progress' && (
+        <Progress pos={pos} log={log} gtg={gtg} tests={tests} ticks={ticks} today={today} onToggleGoal={toggleGoal} />
       )}
 
       <nav className="tabs">

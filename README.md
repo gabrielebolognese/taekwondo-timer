@@ -23,6 +23,22 @@ Interpretation choices the parser makes:
 - GTG uses the plan day of the session you trained today, so finishing Day 1 at 19:30 does not
   switch the evening slots to Day 2's column.
 
+## Completions and progress
+
+- **Mark as completed** logs the current plan day for today's date with `manual: true`, all of its
+  exercises done and no timer data, then advances like a finished session. **Undo last completion**
+  removes the newest completion (manual or timed) and returns to that day. Test log entries are kept.
+- Progress counts a "session" as a completed Day 1 to 6; Day 7 is GTG only. Plan days completed
+  counts distinct days, so redoing a day does not count twice.
+- A calendar date is active (streaks, heatmap) when a plan day was completed on it, or when all of
+  that date's GTG slots were done. The heatmap half fill means "all GTG slots, no session".
+- Last 7 and 28 days compare sessions with 6 planned per 7 days, counted from the first logged day
+  so the first weeks are not shown as missed.
+- Month goals come from each month's `Target:` line (first sentence, split on commas). Ticks are
+  stored under `tkd.goals`.
+- Saved data carries a schema number (`tkd.schema`); `src/lib/migrate.ts` upgrades older data in
+  place on launch.
+
 ## Develop
 
 ```sh
