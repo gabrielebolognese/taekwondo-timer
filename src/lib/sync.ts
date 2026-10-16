@@ -44,6 +44,18 @@ class HttpError extends Error {
   }
 }
 
+class SecretError extends Error {}
+
+/**
+ * Drops spaces, line breaks and invisible characters (zero-width spaces and the like) that come
+ * along when a secret is copied through a note or a chat. Safari refuses to send a header that
+ * contains them, which looks like the Worker being unreachable.
+ */
+export const cleanSecret = (s: string) => s.replace(/[\s­​-‏‪-‮⁠-⁤﻿]/g, '');
+
+/** Printable ASCII only: anything else (a curly quote, say) cannot go in an HTTP header. */
+export const sendableSecret = (s: string) => /^[\x21-\x7E]+$/.test(s);
+
 // ---------- settings ----------
 
 export const getConfig = (): SyncConfig | null => load<SyncConfig | null>('syncConfig', null);
@@ -52,7 +64,7 @@ const setMeta = (m: Partial<SyncMeta>) => write('syncMeta', { ...getMeta(), ...m
 
 /** Accepts the URL wrangler prints, with or without https:// or a trailing /state. */
 export function normalizeUrl(input: string): string | null {
-  let s = input.trim().replace(/\/+$/, '').replace(/\/state$/i, '');
+  let s = cleanSecret(input).replace(/\/+$/, '').replace(/\/state$/i, '');
   if (!s) return null;
   if (!/^[a-z]+:\/\//i.test(s)) s = `https://${s}`;
   try {
@@ -113,16 +125,20 @@ function endpoint(cfg: SyncConfig) {
 }
 
 async function call(cfg: SyncConfig, method: 'GET' | 'PUT', body?: string, keepalive = false): Promise<unknown> {
+  // Cleaned here too, so a secret saved before cleaning existed works without retyping.
+  const secret = cleanSecret(cfg.secret);
+  if (!sendableSecret(secret)) throw new SecretError();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
   try {
+    // No `cache` option: Safari turns it into extra request headers that CORS then has to allow.
+    // The Worker answers with Cache-Control: no-store, so nothing is cached anyway.
     const res = await fetch(endpoint(cfg), {
       method,
       body,
       keepalive,
-      cache: 'no-store',
       signal: ctrl.signal,
-      headers: { Authorization: `Bearer ${cfg.secret}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Authorization: `Bearer ${secret}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     });
     const json: unknown = await res.json().catch(() => null);
     if (!res.ok) throw new HttpError(res.status, json);
@@ -178,6 +194,10 @@ function ok() {
 }
 
 function failed(e: unknown) {
+  if (e instanceof SecretError) {
+    setStatus({ state: 'error', message: 'The saved secret has a character that cannot be sent. Copy it again from the terminal and save.' });
+    return;
+  }
   if (e instanceof HttpError && e.status < 500 && e.status !== 429) {
     const detail = (e.body as { error?: unknown } | null)?.error;
     const message = e.status === 401 ? 'Wrong secret. Check it matches SYNC_SECRET on the Worker.'
@@ -187,8 +207,11 @@ function failed(e: unknown) {
     setStatus({ state: 'error', message });
     return;
   }
+  // The browser's own reason ("Load failed", "no answer in 20 s") helps tell a network problem apart.
+  const reason = e instanceof Error ? (e.name === 'AbortError' ? 'no answer in 20 s' : e.message) : '';
   const message = e instanceof HttpError ? `Worker error ${e.status}. Will retry.`
-    : navigator.onLine ? 'Could not reach the Worker. Will retry.' : 'Offline. Will sync when back online.';
+    : navigator.onLine ? `Could not reach the Worker${reason ? ` (${reason})` : ''}. Will retry.`
+    : 'Offline. Will sync when back online.';
   setStatus({ state: 'offline', message });
   window.clearTimeout(retryTimer);
   retryTimer = window.setTimeout(() => request('reconcile'), RETRY[Math.min(retries++, RETRY.length - 1)]);

@@ -10,4 +10,4 @@ ALLOWED_ORIGIN = "https://gabrielebolognese.github.io"
 # Put the id printed by `wrangler kv namespace create SYNC_KV` here.
 [[kv_namespaces]]
 binding = "SYNC_KV"
-id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+id = "91bf96fa8b5a4c48baa86206a280ac75"

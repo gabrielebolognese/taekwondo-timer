@@ -3,7 +3,7 @@ import { shareOrDownload } from '../lib/files';
 import { useStored, useSyncStatus, useTwoTap } from '../lib/hooks';
 import { currentRecord, describe, importRecord, makeBackup, parseBackup, type TrainingRecord } from '../lib/record';
 import { backend, requestPersistence, shortTime, todayKey } from '../lib/storage';
-import { normalizeUrl, resolveConflict, setConfig, syncNow, type Conflict, type SyncConfig } from '../lib/sync';
+import { cleanSecret, normalizeUrl, resolveConflict, sendableSecret, setConfig, syncNow, type Conflict, type SyncConfig } from '../lib/sync';
 
 const MAX_FILE = 5_000_000;
 
@@ -47,17 +47,22 @@ function SyncCard() {
   const [reveal, setReveal] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const changed = url.trim() !== (saved?.url ?? '') || secret.trim() !== (saved?.secret ?? '');
-  const turningOff = !!saved && !url.trim() && !secret.trim();
+  const cleaned = cleanSecret(secret);
+  const changed = url.trim() !== (saved?.url ?? '') || cleaned !== (saved?.secret ?? '');
+  const turningOff = !!saved && !url.trim() && !cleaned;
 
   const submit = () => {
     setFormError('');
-    if (!url.trim() && !secret.trim()) return setConfig(null);
+    if (!url.trim() && !cleaned) return setConfig(null);
     const normalized = normalizeUrl(url);
     if (!normalized) return setFormError('Use the https address that wrangler deploy printed.');
-    if (!secret.trim()) return setFormError('Enter the secret you set with wrangler secret put.');
+    if (!cleaned) return setFormError('Enter the secret you set with wrangler secret put.');
+    if (!sendableSecret(cleaned)) {
+      return setFormError('The secret has a character that cannot be sent, like a curly quote. Copy it again from the terminal.');
+    }
     setUrl(normalized);
-    setConfig({ url: normalized, secret: secret.trim() });
+    setSecret(cleaned);
+    setConfig({ url: normalized, secret: cleaned });
   };
 
   const text = status.state === 'off' ? 'Off. Add your Worker URL and secret to keep a copy in the cloud.' : status.message;
