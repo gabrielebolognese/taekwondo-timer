@@ -225,7 +225,8 @@ h2 {
 
 .tabs button {
   flex: 1;
-  font-size: 15px;
+  min-width: 0;
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted);
   position: relative;
@@ -1112,3 +1113,121 @@ h2 {
   font-size: 12px;
   font-weight: 700;
 }
+
+/* ---------- settings ---------- */
+
+.ok-text { color: var(--ok); font-weight: 600; }
+.warn-text { color: var(--warn); font-weight: 600; }
+.danger-text { color: var(--danger); }
+
+.text-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.text-field input {
+  width: 100%;
+  height: 50px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  /* 16px or more, or iOS zooms in on focus. */
+  font-size: 16px;
+}
+
+.text-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.secret-row {
+  position: relative;
+  display: block;
+}
+
+.secret-row input { padding-right: 72px; }
+
+.reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 50px;
+  padding: 0 14px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.sync-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.sync-status p { padding-top: 8px; }
+.sync-status p + p { padding-top: 0; }
+
+.sync-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sync-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.sync-dot.idle { background: var(--ok); }
+.sync-dot.pending,
+.sync-dot.syncing { background: var(--rest); }
+.sync-dot.offline { background: var(--warn); }
+.sync-dot.error,
+.sync-dot.conflict { background: var(--danger); }
+
+.card.conflict {
+  margin: 0;
+  background: var(--surface-2);
+  border-color: rgba(255, 69, 58, 0.5);
+}
+
+.card.conflict p { margin: 0; }
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.card.conflict .secondary {
+  padding: 0 10px;
+  background: var(--surface);
+}
+
+.tab-label { position: relative; }
+
+.tab-badge {
+  position: absolute;
+  top: -3px;
+  right: -9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.sheet .choice { background: var(--surface-2); }

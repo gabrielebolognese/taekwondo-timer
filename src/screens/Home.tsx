@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { beep } from '../lib/audio';
+import { useTwoTap } from '../lib/hooks';
 import { getDay, isDeload, LIMITS, monthTarget, nextPos, plan, type Pos } from '../lib/plan';
 import type { Run } from '../lib/steps';
 import { shortDate, type Completion } from '../lib/storage';
@@ -20,21 +21,6 @@ interface Props {
   onMarkCompleted: () => void;
   onUndo: () => void;
   onLogTest: () => void;
-}
-
-/** First tap arms the button for 3 s, second tap confirms. */
-function useTwoTap(action: () => void): [boolean, () => void] {
-  const [armed, setArmed] = useState(false);
-  const tap = () => {
-    if (!armed) {
-      setArmed(true);
-      window.setTimeout(() => setArmed(false), 3000);
-    } else {
-      setArmed(false);
-      action();
-    }
-  };
-  return [armed, tap];
 }
 
 const where = (p: Pos) => `Month ${p.month} · Week ${p.week} · Day ${p.day}`;

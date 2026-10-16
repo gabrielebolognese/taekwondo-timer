@@ -6,3 +6,7 @@ dev-dist
 
 # Original plan PDFs (transcribed into the .md files)
 *.pdf
+
+# Wrangler cache
+.wrangler
+.dev.vars

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { shareOrDownload } from '../lib/files';
 import { LIMITS, planWeek, plan } from '../lib/plan';
 import { shortDate, todayKey, type TestEntry } from '../lib/storage';
 
@@ -25,27 +26,7 @@ export function toCsv(entries: TestEntry[]): string {
 }
 
 function exportCsv(entries: TestEntry[]) {
-  const file = new File([toCsv(entries)], `tkd-test-log-${todayKey()}.csv`, { type: 'text/csv' });
-  // On the phone the share sheet is the reliable way out of a home screen app; desktop just downloads.
-  const touch = window.matchMedia('(pointer: coarse)').matches;
-  if (touch && navigator.canShare?.({ files: [file] })) {
-    navigator.share({ files: [file], title: 'Test log' }).catch((e: Error) => {
-      if (e.name !== 'AbortError') download(file);
-    });
-    return;
-  }
-  download(file);
-}
-
-function download(file: File) {
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  shareOrDownload(new File([toCsv(entries)], `tkd-test-log-${todayKey()}.csv`, { type: 'text/csv' }), 'Test log');
 }
 
 interface Props {

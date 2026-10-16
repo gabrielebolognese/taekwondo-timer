@@ -1,0 +1,13 @@
+# Cloudflare Worker that keeps the cloud copy of the app's data. Setup steps: ../README.md
+name = "tkd-sync"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# Browsers may call the Worker only from this origin (the GitHub Pages site).
+[vars]
+ALLOWED_ORIGIN = "https://gabrielebolognese.github.io"
+
+# Put the id printed by `wrangler kv namespace create SYNC_KV` here.
+[[kv_namespaces]]
+binding = "SYNC_KV"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"

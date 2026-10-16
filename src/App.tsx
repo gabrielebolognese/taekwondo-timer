@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useStored } from './lib/hooks';
+import { useStored, useSyncStatus } from './lib/hooks';
 import { getDay, gtgDay, nextPos, START, type GtgSlot, type Pos } from './lib/plan';
 import { setRunnerOpen } from './lib/pwa';
 import { back, counts } from './lib/run';
@@ -9,9 +9,10 @@ import { Gtg } from './screens/Gtg';
 import { Home } from './screens/Home';
 import { Progress } from './screens/Progress';
 import { Runner } from './screens/Runner';
+import { Settings } from './screens/Settings';
 import { TestForm, Tests } from './screens/Tests';
 
-type Tab = 'train' | 'gtg' | 'tests' | 'progress';
+type Tab = 'train' | 'gtg' | 'tests' | 'progress' | 'settings';
 type TestDraft = Partial<TestEntry> & { month: number; week: number };
 
 const TABS: { id: Tab; label: string }[] = [
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'gtg', label: 'GTG' },
   { id: 'tests', label: 'Tests' },
   { id: 'progress', label: 'Progress' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 const samePos = (a: Pos, b: Pos) => a.month === b.month && a.week === b.week && a.day === b.day;
@@ -44,6 +46,7 @@ export function App() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [testDraft, setTestDraft] = useState<TestDraft | null>(null);
   const [today, setToday] = useState(todayKey);
+  const sync = useSyncStatus();
 
   useEffect(() => {
     const refresh = () => setToday(todayKey());
@@ -198,11 +201,17 @@ export function App() {
       {tab === 'progress' && (
         <Progress pos={pos} log={log} gtg={gtg} tests={tests} ticks={ticks} today={today} onToggleGoal={toggleGoal} />
       )}
+      {tab === 'settings' && <Settings />}
 
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-            {t.label}
+            <span className="tab-label">
+              {t.label}
+              {t.id === 'settings' && (sync.state === 'error' || sync.state === 'conflict') && (
+                <span className="tab-badge" aria-label="Sync needs attention" />
+              )}
+            </span>
           </button>
         ))}
       </nav>

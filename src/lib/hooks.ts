@@ -1,20 +1,33 @@
-import { useCallback, useEffect, useState } from 'react';
-import { load, save } from './storage';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { load, save, subscribe } from './storage';
+import { getSyncStatus, subscribeSync } from './sync';
 
-/** State mirrored to localStorage. */
+/** A stored value. Re-renders when it changes, including when a backup or cloud copy replaces it. */
 export function useStored<T>(key: string, fallback: T): [T, (v: T | ((prev: T) => T)) => void] {
-  const [value, setValue] = useState<T>(() => load(key, fallback));
+  const initial = useRef(fallback).current;
+  const value = useSyncExternalStore(subscribe, () => load(key, initial));
   const set = useCallback(
-    (v: T | ((prev: T) => T)) => {
-      setValue((prev) => {
-        const nextValue = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
-        save(key, nextValue);
-        return nextValue;
-      });
-    },
-    [key],
+    (v: T | ((prev: T) => T)) => save(key, typeof v === 'function' ? (v as (p: T) => T)(load(key, initial)) : v),
+    [key, initial],
   );
   return [value, set];
+}
+
+export const useSyncStatus = () => useSyncExternalStore(subscribeSync, getSyncStatus);
+
+/** First tap arms the button for 3 s, second tap confirms. */
+export function useTwoTap(action: () => void): [boolean, () => void] {
+  const [armed, setArmed] = useState(false);
+  const tap = () => {
+    if (!armed) {
+      setArmed(true);
+      window.setTimeout(() => setArmed(false), 3000);
+    } else {
+      setArmed(false);
+      action();
+    }
+  };
+  return [armed, tap];
 }
 
 /** Keeps the screen on while `active`, re-acquiring after the app comes back to the foreground. */

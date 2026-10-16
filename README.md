@@ -1,7 +1,8 @@
 # Taekwondo Timer
 
 Offline PWA that runs the 6 month training plan and the daily GTG sets on an iPhone.
-No backend, no accounts, no analytics. All state is in `localStorage` (keys start with `tkd.`).
+No accounts, no analytics. All state is in IndexedDB on the phone, with an optional cloud copy on
+your own Cloudflare Worker and JSON backup files.
 
 ## Plan data
 
@@ -35,9 +36,55 @@ Interpretation choices the parser makes:
 - Last 7 and 28 days compare sessions with 6 planned per 7 days, counted from the first logged day
   so the first weeks are not shown as missed.
 - Month goals come from each month's `Target:` line (first sentence, split on commas). Ticks are
-  stored under `tkd.goals`.
-- Saved data carries a schema number (`tkd.schema`); `src/lib/migrate.ts` upgrades older data in
+  stored under `goals`.
+- Saved data carries a schema number (`schema`); `src/lib/migrate.ts` upgrades older data in
   place on launch.
+
+## Storage, sync and backups
+
+- **On the phone.** IndexedDB, database `tkd`, store `state` (through idb-keyval), mirrored in
+  memory so screens read it synchronously (`src/lib/storage.ts`). Versions before this one used
+  `localStorage` keys starting with `tkd.`: the first launch copies them into IndexedDB, reads them
+  back to check, then deletes them. A key already in IndexedDB is never overwritten by a
+  `localStorage` leftover. If IndexedDB does not work at all, the app keeps using `localStorage`.
+- The app calls `navigator.storage.persist()` on launch; Settings shows "Storage: persistent" or
+  "Storage: may be cleared".
+- **The training record** is `pos`, `log`, `tests`, `gtg` and `goals` (plus `schema`). That is
+  what the cloud copy and backup files hold (`src/lib/record.ts`). The open tab, a session in
+  progress and the sync URL and secret stay on the device.
+- **Cloud sync** (`src/lib/sync.ts`). Every change to the record stamps `updatedAt` and uploads the
+  whole record 2 s later (several quick taps make one upload). When the Worker cannot be reached it
+  retries after 5 s, 15 s, 30 s, 1, 2 and 5 min, when the phone comes back online, and when the
+  app returns to the screen. On launch and with **Sync now** it compares both copies: if the
+  phone has no data it takes the cloud copy; otherwise the copy with the newer `updatedAt` wins.
+  The one exception is the first sync of a phone that already has data while the cloud holds
+  different data: Settings then asks which copy to keep, so a phone that was only tried out can
+  never wipe the real history. The Worker refuses (409) an upload older than what it stores.
+- **Backup files.** Export backup writes `tkd-backup-<date>.json` (share sheet on the phone,
+  download on a computer). Import backup checks the file, shows what it holds next to what the
+  phone has, and replaces the record only after **Replace**. An import counts as a new change, so
+  it also becomes the cloud copy. Files contain no URL or secret.
+
+## Cloud backup setup (Cloudflare Worker + KV)
+
+The Worker is in `worker/`: `GET /state` returns `{ data, updatedAt }` and `PUT /state` stores it.
+Both need `Authorization: Bearer <SYNC_SECRET>`, anything else gets 401. Browsers may call it only
+from `ALLOWED_ORIGIN` in `worker/wrangler.toml` (the GitHub Pages origin). Cloudflare's free plan
+covers it (KV allows 1,000 writes a day; a day of training uses a few dozen).
+
+```sh
+npm i -g wrangler
+wrangler login                          # opens the browser to sign in to Cloudflare
+cd worker
+wrangler kv namespace create SYNC_KV    # copy the printed id into wrangler.toml
+wrangler secret put SYNC_SECRET         # paste a long random secret when asked
+wrangler deploy                         # prints https://tkd-sync.<your-subdomain>.workers.dev
+```
+
+To make a secret: `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`.
+Then in the app: Settings > Cloud sync, paste the Worker URL and the secret, tap **Save and sync**.
+Check the Worker from a terminal with
+`curl -H "Authorization: Bearer <secret>" https://tkd-sync.<your-subdomain>.workers.dev/state`.
 
 ## Develop
 

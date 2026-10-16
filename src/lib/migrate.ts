@@ -2,11 +2,11 @@
 // the current day, completions, test log and GTG history all carry over.
 
 import { getDay, gtgDay, START, type Pos } from './plan';
-import { load, save, type Completion, type GtgLog } from './storage';
+import { load, write, type Completion, type GtgLog } from './storage';
 
-const SCHEMA = 2;
+export const SCHEMA = 2;
 
-const validPos = (p: unknown): p is Pos => {
+export const validPos = (p: unknown): p is Pos => {
   const q = p as Pos;
   return !!q && [q.month, q.week, q.day].every(Number.isInteger) && q.month >= 1 && q.month <= 6
     && q.week >= 1 && q.week <= 4 && q.day >= 1 && q.day <= 7;
@@ -24,7 +24,7 @@ function toV2() {
     if (manual) delete entry.minutes;
     return entry;
   });
-  save('log', log);
+  write('log', log);
 
   const old = load<Record<string, number[]> | null>('gtgDone', null);
   if (old) {
@@ -35,18 +35,25 @@ function toV2() {
       const p = log.findLast((e) => e.date === date)?.pos ?? (validPos(pos) ? pos : START);
       gtg[date] = { done: [...new Set(list)], total: gtgDay(p).slots.length };
     }
-    save('gtg', gtg);
-    save('gtgDone', null);
+    write('gtg', gtg);
+    write('gtgDone', null);
   }
 }
 
 export function migrate() {
   const version = load<number>('schema', 1);
-  if (version >= SCHEMA) return;
-  try {
-    if (version < 2) toV2();
-    save('schema', SCHEMA);
-  } catch {
-    // Leave the old data untouched and try again next launch rather than lose anything.
+  if (version < SCHEMA) {
+    try {
+      if (version < 2) toV2();
+      write('schema', SCHEMA);
+    } catch {
+      // Leave the old data untouched and try again next launch rather than lose anything.
+    }
+  }
+  // Data from before cloud sync has no change time. The newest completion stands in for it,
+  // which keeps it older than any cloud copy made since.
+  if (load<number | null>('updatedAt', null) === null) {
+    const at = Math.max(0, ...load<Completion[]>('log', []).map((e) => e.at).filter(Number.isFinite));
+    if (at) write('updatedAt', at);
   }
 }
