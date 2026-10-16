@@ -3,7 +3,10 @@ import { shareOrDownload } from '../lib/files';
 import { useStored, useSyncStatus, useTwoTap } from '../lib/hooks';
 import { currentRecord, describe, importRecord, makeBackup, parseBackup, type TrainingRecord } from '../lib/record';
 import { backend, requestPersistence, shortTime, todayKey } from '../lib/storage';
-import { cleanSecret, normalizeUrl, resolveConflict, sendableSecret, setConfig, syncNow, type Conflict, type SyncConfig } from '../lib/sync';
+import {
+  cleanSecret, normalizeUrl, resolveConflict, sendableSecret, setConfig, syncNow, testConnection,
+  type CheckLine, type Conflict, type SyncConfig,
+} from '../lib/sync';
 
 const MAX_FILE = 5_000_000;
 
@@ -14,6 +17,7 @@ export function Settings() {
       <StorageCard />
       <SyncCard />
       <BackupCard />
+      <p className="muted small version">Version {__APP_VERSION__}, built {__BUILD_DATE__}</p>
     </div>
   );
 }
@@ -107,7 +111,35 @@ function SyncCard() {
       </div>
       <button className="secondary" disabled={!saved || status.state === 'syncing'} onClick={syncNow}>Sync now</button>
       {status.conflict && <ConflictCard conflict={status.conflict} />}
+      {saved && <ConnectionTest />}
     </section>
+  );
+}
+
+function ConnectionTest() {
+  const [lines, setLines] = useState<CheckLine[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const run = async () => {
+    setRunning(true);
+    setLines(null);
+    setLines(await testConnection());
+    setRunning(false);
+  };
+  return (
+    <>
+      <button className="link-btn tight" disabled={running} onClick={() => void run()}>
+        {running ? 'Testing connection' : 'Test connection'}
+      </button>
+      {lines && (
+        <ul className="checks">
+          {lines.map((l) => (
+            <li key={l.text} className={l.ok ? 'ok' : 'bad'}>
+              <span aria-hidden="true">{l.ok ? '✓' : '✗'}</span>{l.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

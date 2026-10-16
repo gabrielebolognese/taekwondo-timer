@@ -1218,6 +1218,37 @@ h2 {
   background: var(--surface);
 }
 
+.link-btn.tight { margin: 0 auto; }
+
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.checks li {
+  display: flex;
+  gap: 8px;
+}
+
+.checks li span {
+  flex: none;
+  width: 14px;
+  font-weight: 700;
+}
+
+.checks li.ok span { color: var(--ok); }
+.checks li.bad span { color: var(--danger); }
+
+.version { margin: 18px 0 0; text-align: center; }
+
 .tab-label { position: relative; }
 
 .tab-badge {

@@ -323,6 +323,52 @@ export function resolveConflict(keep: 'device' | 'cloud') {
   request('push');
 }
 
+// ---------- connection test ----------
+
+export interface CheckLine {
+  ok: boolean;
+  text: string;
+}
+
+/** Status code, or the browser's reason when no answer came back. */
+async function probe(url: string, headers: { [k: string]: string }): Promise<number | string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  try {
+    return (await fetch(`${url}/state`, { headers, signal: ctrl.signal })).status;
+  } catch (e) {
+    return e instanceof Error ? (e.name === 'AbortError' ? 'no answer in 15 s' : `${e.name}: ${e.message}`) : String(e);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Step by step check for Settings: a plain request (no secret, so no CORS preflight) tells
+ * network problems apart from secret and preflight problems.
+ */
+export async function testConnection(): Promise<CheckLine[]> {
+  const cfg = getConfig();
+  if (!cfg) return [{ ok: false, text: 'No Worker URL saved.' }];
+  const secret = cleanSecret(cfg.secret);
+  const lines: CheckLine[] = [{ ok: true, text: `URL: ${cfg.url}` }];
+  const sendable = sendableSecret(secret);
+  lines.push({ ok: sendable, text: `Secret: ${secret.length} characters${sendable ? '' : ', one of them cannot be sent'}` });
+
+  const plain = await probe(cfg.url, {});
+  lines.push(typeof plain === 'number'
+    ? { ok: plain === 401, text: `Without the secret: answered ${plain}${plain === 401 ? ', as expected' : ''}` }
+    : { ok: false, text: `Without the secret: no answer (${plain})` });
+  if (!sendable) return lines;
+
+  const authed = await probe(cfg.url, { Authorization: `Bearer ${secret}` });
+  lines.push(authed === 200 ? { ok: true, text: 'With the secret: accepted' }
+    : authed === 401 ? { ok: false, text: 'With the secret: rejected, the secret does not match' }
+    : typeof authed === 'number' ? { ok: false, text: `With the secret: answered ${authed}` }
+    : { ok: false, text: `With the secret: no answer (${authed})` });
+  return lines;
+}
+
 // ---------- lifecycle ----------
 
 /** Wires up pushing after changes and syncs once. Call after the first render. */

@@ -15,12 +15,24 @@ function maybeApply() {
 }
 
 export function initPwa() {
+  let registration: ServiceWorkerRegistration | undefined;
+  let lastCheck = Date.now();
   update = registerSW({
     immediate: true,
     onNeedRefresh() {
       pending = true;
       maybeApply();
     },
+    onRegisteredSW(_url, r) {
+      registration = r;
+    },
+  });
+  // iOS often brings a home screen app back without reloading it, which skips the update check
+  // a fresh start does. Check again when the app returns to the screen, at most once a minute.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !registration || Date.now() - lastCheck < 60_000) return;
+    lastCheck = Date.now();
+    void registration.update().catch(() => {});
   });
 }
 
