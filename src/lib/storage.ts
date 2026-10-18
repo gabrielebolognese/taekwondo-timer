@@ -188,6 +188,8 @@ export interface Completion {
   dropped: string[];
   /** Exercises done (all of them for a manual completion). */
   done: string[];
+  /** What the completed sets added up to ("r:" reps, "s:" seconds, by movement). Timer sessions only. */
+  vol?: Record<string, number>;
 }
 
 export interface TestEntry {

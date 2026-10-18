@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { beep } from '../lib/audio';
-import { useWakeLock } from '../lib/hooks';
+import { coach, freshMemory } from '../lib/coach';
+import { useStored, useWakeLock } from '../lib/hooks';
 import * as R from '../lib/run';
-import type { Run, Step } from '../lib/steps';
+import { isCountdown, type Run, type Step } from '../lib/steps';
+import { hush, voiceSupported } from '../lib/voice';
 
 interface Props {
   run: Run;
@@ -25,36 +26,6 @@ function sizeClass(text: string): string {
   return 'big-s';
 }
 
-interface BeepState {
-  key: string;
-  sec: number;
-  minute: number;
-}
-
-/** 3, 2, 1 beeps before every timer end, plus a long beep at the top of each EMOM minute. */
-function countdownBeeps(r: Run, now: number, st: BeepState) {
-  const step = r.steps[r.idx];
-  if (r.finished || !step || !r.timer || !('endsAt' in r.timer)) {
-    st.key = '';
-    return;
-  }
-  const left = r.timer.endsAt - now;
-  const key = `${r.idx}:${r.timer.endsAt}`;
-  let sec: number;
-  if (step.mode === 'emom') {
-    const elapsed = step.sec! * 1000 - left;
-    const minute = Math.floor(elapsed / 60000);
-    if (st.key === key && minute > st.minute) beep('long');
-    st.minute = minute;
-    sec = Math.ceil((60000 - (elapsed % 60000)) / 1000);
-  } else {
-    sec = Math.ceil(left / 1000);
-  }
-  if (sec >= 1 && sec <= 3 && (st.key !== key || st.sec !== sec)) beep('short');
-  st.key = key;
-  st.sec = sec;
-}
-
 function describe(s: Step): string {
   const value = s.big ?? (s.lines ? s.lines.join(', ') : s.sec ? fmtTime(s.sec * 1000, s.sec) + (s.sec < 60 ? ' s' : '') : '');
   return [s.label, [value, s.unit].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
@@ -65,7 +36,8 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
   const [listOpen, setListOpen] = useState(false);
   const runRef = useRef(run);
   const onChangeRef = useRef(onChange);
-  const beepRef = useRef<BeepState>({ key: '', sec: -1, minute: -1 });
+  const coachRef = useRef(freshMemory());
+  const [voice, setVoice] = useStored<boolean>('voiceOn', true);
   runRef.current = run;
   onChangeRef.current = onChange;
   useWakeLock(!run.finished);
@@ -77,13 +49,14 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
   const act = (f: (r: Run, t: number) => Run) => commit(f(runRef.current, Date.now()));
 
   useEffect(() => {
+    coachRef.current = freshMemory();
     const loop = () => {
       const t = Date.now();
       const { run: r, ended } = R.tick(runRef.current, t);
-      // Only beep for a timer that just ended, not for ones that ran out while the app was closed.
-      if (ended.length && t - ended[ended.length - 1] < 1500) beep('long');
+      // Timers that ran out while the app was in the background move on without a sound.
+      const quiet = ended.length > 0 && t - ended[ended.length - 1] > 1500;
       if (r !== runRef.current) commit(r);
-      countdownBeeps(r, t, beepRef.current);
+      coach(r, t, coachRef.current, quiet);
       setNow(t);
     };
     loop();
@@ -92,6 +65,7 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
     return () => {
       window.clearInterval(id);
       document.removeEventListener('visibilitychange', loop);
+      hush();
     };
   }, []);
 
@@ -104,8 +78,12 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
   const paused = !!timer && 'left' in timer;
   const leftMs = timer ? ('endsAt' in timer ? Math.max(0, timer.endsAt - now) : timer.left) : (step.sec ?? 0) * 1000;
   const timed = R.isTimed(step);
-  const isRest = step.mode === 'rest';
+  const isRest = isCountdown(step);
+  const cd = isRest ? step.cd ?? 'rest' : null;
   const canDrop = run.kind === 'session' && !ex.warmup && !isRest;
+  let nextIdx = run.idx + 1;
+  while (isCountdown(run.steps[nextIdx])) nextIdx++;
+  const upcoming = run.steps[nextIdx] as Step | undefined;
 
   let label = step.label;
   let big = step.big ?? '';
@@ -123,16 +101,14 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
     detail = `${step.perMinute} per minute · ${fmtTime(leftMs, step.sec)} left`;
   }
 
-  const nextStep = run.steps[run.idx + 1];
   const nextEx = run.exercises[step.ex + 1];
   let preview: ReactNode = null;
-  if (isRest && nextStep) {
-    const other = nextStep.ex !== step.ex ? run.exercises[nextStep.ex].name : null;
+  if (isRest && upcoming) {
     preview = (
       <>
         <span className="eyebrow">Up next</span>
-        {other && <b>{other}</b>}
-        <span>{describe(nextStep)}</span>
+        <b>{run.exercises[upcoming.ex].name}</b>
+        <span>{describe(upcoming)}</span>
       </>
     );
   } else if (nextEx) {
@@ -159,11 +135,26 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
           {run.kind === 'gtg' && <span className="chip">GTG</span>}
           <span>{step.ex + 1} / {run.exercises.length}</span>
         </div>
-        <button className="icon-btn text" onClick={() => setListOpen(true)}>List</button>
+        <div className="runner-actions">
+          {voiceSupported() && (
+            <button
+              className={`icon-btn voice-btn${voice ? ' on' : ''}`}
+              aria-label={voice ? 'Voice on, tap to mute' : 'Voice off, tap to turn on'}
+              aria-pressed={voice}
+              onClick={() => {
+                if (voice) hush();
+                setVoice(!voice);
+              }}
+            >
+              <SpeakerIcon on={voice} />
+            </button>
+          )}
+          <button className="icon-btn text" onClick={() => setListOpen(true)}>List</button>
+        </div>
       </header>
       <div className="progress"><div style={{ width: `${doneCount * 100}%` }} /></div>
 
-      <h1 className="ex-name">{isRest ? 'Rest' : ex.name}</h1>
+      <h1 className="ex-name">{cd === 'switch' ? 'Switch sides' : cd === 'ready' ? 'Get ready' : cd ? 'Rest' : ex.name}</h1>
 
       <main
         className={`stage${timed ? ' tappable' : ''}`}
@@ -175,7 +166,9 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
         ) : (
           <div className={`big ${sizeClass(big)}${paused ? ' paused' : ''}`}>{big}</div>
         )}
-        {isRest ? <div className="unit">{ex.name}</div> : unit && <div className="unit">{unit}</div>}
+        {isRest
+          ? <div className="unit">{cd === 'switch' && upcoming ? upcoming.label : upcoming ? run.exercises[upcoming.ex].name : ex.name}</div>
+          : unit && <div className="unit">{unit}</div>}
         {!isRest && detail && <div className="detail">{detail}</div>}
         {paused && <div className="detail">Paused</div>}
         {step.mode === 'count' && (
@@ -203,7 +196,7 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
             {running ? 'Pause' : paused ? 'Resume' : 'Start'}
           </button>
         )}
-        {isRest && <button className="primary rest-btn" onClick={() => act(R.next)}>Skip rest</button>}
+        {isRest && <button className="primary rest-btn" onClick={() => act(R.next)}>{cd === 'rest' ? 'Skip rest' : 'Start now'}</button>}
         {step.mode === 'count' && (
           <div className="split">
             <button className="primary muted-btn" onClick={() => act((r, t) => R.answer(r, false, t))}>{step.count!.no}</button>
@@ -245,5 +238,14 @@ export function Runner({ run, onChange, onClose, renderFinish }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function SpeakerIcon({ on }: { on: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      {on ? <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /> : <path d="m16 9 6 6M22 9l-6 6" />}
+    </svg>
   );
 }

@@ -1,7 +1,7 @@
 // Pure state transitions for a run. Timers store an end timestamp, so the
 // remaining time is always Date.now() based and survives backgrounding.
 
-import type { Run, Step, TestField } from './steps';
+import { isCountdown, type Run, type Step, type TestField } from './steps';
 
 export const isTimed = (s: Step | undefined) => !!s && (s.mode === 'timer' || s.mode === 'rest' || s.mode === 'emom');
 const isAuto = (s: Step | undefined) => isTimed(s) && !!s?.auto;
@@ -65,11 +65,11 @@ export const jumpToExercise = (run: Run, ex: number, now: number) => enter(run, 
 
 export const finishNow = (run: Run, now: number) => enter(run, run.steps.length, now);
 
-/** Undo the last move. Skips back over automatic steps (rest, chained PNF phases). */
+/** Undo the last move. Skips back over countdowns (rest, side switch, get ready). */
 export function back(run: Run): Run {
   const history = [...run.history];
   let idx = history.pop();
-  while (idx !== undefined && history.length && isAuto(run.steps[idx])) idx = history.pop();
+  while (idx !== undefined && history.length && isCountdown(run.steps[idx])) idx = history.pop();
   if (idx === undefined) return run;
   const ex = run.steps[idx].ex;
   return { ...run, idx, history, timer: null, finished: false, dropped: run.dropped.filter((d) => d !== ex) };

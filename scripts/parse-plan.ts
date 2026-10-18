@@ -112,6 +112,8 @@ function dayify(text: string): string {
 
 // ---------- training plan ----------
 
+const FLEX_REST = 30;
+
 function parseRest(text: string): Record<RestCat, number> {
   const rest: Partial<Record<RestCat, number>> = {};
   for (const part of text.replace(/\.$/, '').split(/,\s*/)) {
@@ -122,7 +124,9 @@ function parseRest(text: string): Record<RestCat, number> {
     if (/strength/.test(what)) rest.strength = sec;
     if (/contrast/.test(what)) rest.contrast = sec;
     if (/trick/.test(what)) rest.trick = sec;
-    if (/flex/.test(what)) rest.flex = sec;
+    // The plan says "flexibility none"; the app still gives 30 s between stretching sets and
+    // rounds so there is time to reset the position.
+    if (/flex/.test(what)) rest.flex = Math.max(sec, FLEX_REST);
   }
   for (const k of ['jump', 'strength', 'contrast', 'trick', 'flex'] as RestCat[]) {
     if (rest[k] === undefined) fail(`Rest rule is missing "${k}"`);

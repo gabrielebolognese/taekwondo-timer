@@ -90,7 +90,8 @@ const TEST_FIELDS = ['maxJump', 'highestKick', 'landed540', 'landed720', 'ballHe
 function checkCompletion(e: unknown): boolean {
   return isObj(e) && isDate(e.date) && Number.isFinite(e.at) && validPos(e.pos) && typeof e.title === 'string'
     && strings(e.dropped) && strings(e.done)
-    && (e.manual === undefined || typeof e.manual === 'boolean') && optNumber(e.minutes);
+    && (e.manual === undefined || typeof e.manual === 'boolean') && optNumber(e.minutes)
+    && (e.vol === undefined || (isObj(e.vol) && Object.values(e.vol).every((n) => Number.isFinite(n))));
 }
 
 function checkTest(t: unknown): boolean {

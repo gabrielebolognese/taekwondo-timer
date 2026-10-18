@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { beep } from '../lib/audio';
+import { whistle } from '../lib/audio';
 import { useTwoTap } from '../lib/hooks';
+import { say } from '../lib/voice';
 import { getDay, isDeload, LIMITS, monthTarget, nextPos, plan, type Pos } from '../lib/plan';
 import type { Run } from '../lib/steps';
 import { shortDate, type Completion } from '../lib/storage';
@@ -86,8 +87,8 @@ export function Home(props: Props) {
         <summary>Month {pos.month} target and rules</summary>
         <p>{monthTarget(pos)}</p>
         {plan.rules.map((r) => <p key={r.label}><b>{r.label}:</b> {r.text}</p>)}
-        <p className="muted small">Beeps need the ringer switch off silent. Tap below to check the volume.</p>
-        <button className="secondary" onClick={() => beep('long')}>Test sound</button>
+        <p className="muted small">The whistle, beeps and voice need the ringer switch off silent. Tap below to check the volume.</p>
+        <button className="secondary" onClick={() => { whistle(); say('Sound check.', 800, true); }}>Test sound</button>
       </details>
 
       {last && (

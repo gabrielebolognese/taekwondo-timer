@@ -1,7 +1,8 @@
-import { useState, type PointerEvent } from 'react';
+import { useMemo, useState, type PointerEvent } from 'react';
 import { plan, planWeek, type Pos } from '../lib/plan';
 import { dayStates, firstActivity, fullGtg, isSession, planDaysCompleted, streaks, windowStats, type DayState } from '../lib/progress';
 import { addDays, goalKey, shortDate, type Completion, type GoalTicks, type GtgLog, type TestEntry } from '../lib/storage';
+import { totals, type Totals } from '../lib/volume';
 
 const TOTAL_DAYS = plan.months.reduce((n, m) => n + m.weeks.length * m.weeks[0].days.length, 0);
 
@@ -40,6 +41,8 @@ export function Progress({ pos, log, gtg, tests, ticks, today, onToggleGoal }: P
         </div>
       </section>
 
+      <TotalsSection log={log} gtg={gtg} />
+
       <h3 className="section-title">Momentum</h3>
       <div className="tiles">
         <Tile label="Current streak" value={current} unit={current === 1 ? 'day' : 'days'} />
@@ -70,12 +73,61 @@ function Meter({ value, max }: { value: number; max: number }) {
   );
 }
 
-function Tile({ label, value, unit }: { label: string; value: number; unit?: string }) {
+function Tile({ label, value, unit, sub, hero }: { label: string; value: number | string; unit?: string; sub?: string; hero?: boolean }) {
   return (
-    <div className="tile">
+    <div className={`tile${hero ? ' hero' : ''}`}>
       <span className="tile-label">{label}</span>
       <span className="tile-value">{value}{unit && <span className="tile-unit"> {unit}</span>}</span>
+      {sub && <span className="tile-sub">{sub}</span>}
     </div>
+  );
+}
+
+const count = (n: number) => Math.round(n).toLocaleString();
+
+/** "45 min", "3 h 20 min". */
+function hours(sec: number): string {
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`;
+}
+
+function TotalsSection({ log, gtg }: { log: Completion[]; gtg: GtgLog }) {
+  const t: Totals = useMemo(() => totals(log, gtg), [log, gtg]);
+  const reps = t.movements.filter((m) => !m.sec);
+  const timed = t.movements.filter((m) => m.sec);
+  return (
+    <>
+      <h3 className="section-title">Totals</h3>
+      <div className="tiles">
+        <Tile label="Kicks" value={count(t.kicks)} hero />
+        {t.spins.map((s) => (
+          <Tile
+            key={s.deg}
+            label={`${s.deg}s`}
+            value={count(s.total)}
+            hero
+            sub={s.parts.map((p) => `${count(p.n)} ${p.label}`).join(', ') || undefined}
+          />
+        ))}
+        <Tile label="Jumps" value={count(t.jumps)} />
+        <Tile label="Holds and stretches" value={hours(t.holdSec)} />
+      </div>
+      {t.movements.length > 0 ? (
+        <details className="rules totals">
+          <summary>Every exercise</summary>
+          <ul className="totals-list">
+            {reps.map((m) => <li key={m.name}><span>{m.name}</span><b>{count(m.n)}</b></li>)}
+            {timed.map((m) => <li key={m.name}><span>{m.name}</span><b>{hours(m.n)}</b></li>)}
+          </ul>
+        </details>
+      ) : (
+        <p className="muted small">Totals fill in as you complete sessions and GTG sets.</p>
+      )}
+      <p className="muted small">
+        Counted from finished sets and ticked GTG slots. Days marked as completed count the full plan for that day; an EMOM counts one rep a minute.
+      </p>
+    </>
   );
 }
 

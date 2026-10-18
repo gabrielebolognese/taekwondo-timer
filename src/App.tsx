@@ -3,13 +3,14 @@ import { useStored, useSyncStatus } from './lib/hooks';
 import { getDay, gtgDay, nextPos, START, type GtgSlot, type Pos } from './lib/plan';
 import { setRunnerOpen } from './lib/pwa';
 import { back, counts } from './lib/run';
-import { buildGtg, buildSession, type Run } from './lib/steps';
+import { buildGtg, buildSession, isCountdown, runVolume, type Run } from './lib/steps';
 import { goalKey, todayKey, type Completion, type GoalTicks, type GtgLog, type TestEntry } from './lib/storage';
 import { Gtg } from './screens/Gtg';
 import { Home } from './screens/Home';
 import { Progress } from './screens/Progress';
 import { Runner } from './screens/Runner';
 import { Settings } from './screens/Settings';
+import { TabIcon } from './TabIcon';
 import { TestForm, Tests } from './screens/Tests';
 
 type Tab = 'train' | 'gtg' | 'tests' | 'progress' | 'settings';
@@ -28,7 +29,7 @@ const samePos = (a: Pos, b: Pos) => a.month === b.month && a.week === b.week && 
 /** Main exercises the run reached (or ended with "Output dropped"). Warm-up items are not counted. */
 function exercisesDone(run: Run): string[] {
   const visited = new Set([...run.history, run.idx]);
-  const reached = new Set(run.steps.filter((_, i) => visited.has(i)).map((s) => s.ex));
+  const reached = new Set(run.steps.filter((s, i) => visited.has(i) && !isCountdown(s)).map((s) => s.ex));
   return run.exercises
     .filter((e, i) => !e.warmup && (reached.has(i) || run.dropped.includes(i)))
     .map((e) => e.name);
@@ -82,6 +83,8 @@ export function App() {
       minutes: Math.round((Date.now() - run.startedAt) / 60_000),
       dropped: run.dropped.map((i) => run.exercises[i].name),
       done: exercisesDone(run),
+      // Steps left behind were completed (the last one too, once the run is finished).
+      vol: runVolume(run, run.history),
     });
     if (test) upsertTest(test);
     setSession(null);
@@ -205,9 +208,16 @@ export function App() {
 
       <nav className="tabs">
         {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-            <span className="tab-label">
-              {t.label}
+          <button
+            key={t.id}
+            className={tab === t.id ? 'on' : ''}
+            onClick={() => setTab(t.id)}
+            aria-label={t.label}
+            aria-current={tab === t.id ? 'page' : undefined}
+            title={t.label}
+          >
+            <span className="tab-icon">
+              <TabIcon tab={t.id} />
               {t.id === 'settings' && (sync.state === 'error' || sync.state === 'conflict') && (
                 <span className="tab-badge" aria-label="Sync needs attention" />
               )}

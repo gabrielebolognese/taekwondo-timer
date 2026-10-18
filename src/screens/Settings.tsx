@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { shareOrDownload } from '../lib/files';
+import { whistle } from '../lib/audio';
 import { useStored, useSyncStatus, useTwoTap } from '../lib/hooks';
 import { currentRecord, describe, importRecord, makeBackup, parseBackup, type TrainingRecord } from '../lib/record';
 import { backend, requestPersistence, shortTime, todayKey } from '../lib/storage';
@@ -7,6 +8,7 @@ import {
   cleanSecret, normalizeUrl, resolveConflict, sendableSecret, setConfig, syncNow, testConnection,
   type CheckLine, type Conflict, type SyncConfig,
 } from '../lib/sync';
+import { englishVoices, hush, onVoicesChanged, say, voiceSupported } from '../lib/voice';
 
 const MAX_FILE = 5_000_000;
 
@@ -14,11 +16,59 @@ export function Settings() {
   return (
     <div className="screen">
       <h2 className="day-title">Settings</h2>
+      <VoiceCard />
       <StorageCard />
       <SyncCard />
       <BackupCard />
       <p className="muted small version">Version {__APP_VERSION__}, built {__BUILD_DATE__}</p>
     </div>
+  );
+}
+
+function VoiceCard() {
+  const [on, setOn] = useStored<boolean>('voiceOn', true);
+  const [name, setName] = useStored<string | null>('voiceName', null);
+  const [voices, setVoices] = useState(englishVoices);
+  useEffect(() => onVoicesChanged(() => setVoices(englishVoices())), []);
+  const test = () => {
+    whistle();
+    say('Depth jump from box. Set 1 of 4. 4 reps.', 800, true);
+  };
+  return (
+    <section className="pcard">
+      <span className="eyebrow">Voice coach</span>
+      {voiceSupported() ? (
+        <>
+          <div className="toggle-row">
+            <span>Speak during sessions</span>
+            <button
+              role="switch"
+              aria-checked={on}
+              aria-label="Speak during sessions"
+              className="switch"
+              onClick={() => {
+                if (on) hush();
+                setOn(!on);
+              }}
+            />
+          </div>
+          <p className="muted small">
+            Says the exercise, set and reps, warns 10 seconds before a rest ends and blows a whistle to start.
+            The ringer switch on silent can mute it.
+          </p>
+          <label className="text-field select-field">
+            <span>Voice</span>
+            <select value={name ?? ''} onChange={(e) => setName(e.target.value || null)}>
+              <option value="">Default</option>
+              {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+            </select>
+          </label>
+        </>
+      ) : (
+        <p className="muted small">This browser cannot speak. Beeps and the whistle still play.</p>
+      )}
+      <button className="secondary" onClick={test}>Test voice and whistle</button>
+    </section>
   );
 }
 

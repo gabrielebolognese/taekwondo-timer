@@ -15,10 +15,17 @@ Interpretation choices the parser makes:
 - Days are numbered 1 to 7 (Mon = Day 1 ... Sun = Day 7).
 - Week 4 halves sets, rounds, EMOM minutes and sprint reps, rounded up. Tests, warm-ups and the
   Day 7 10 min block are not halved.
-- Rest: jumps and strength 2 min, contrast 3 min, tricks 90 s (upper end of 60 to 90 s),
-  flexibility none. On Days 2 and 5 only "Fast kicks to ball" gets trick rest. Spins
-  (360, 480, 540, 720, tornado) count as tricks even on power days.
-- Rest also runs after the last set of an exercise, before the next one. Every rest can be skipped.
+- Rest between sets and rounds: jumps and strength 2 min, contrast 3 min, tricks 90 s (upper end
+  of 60 to 90 s), flexibility 30 s (the plan says none; the app gives time to reset the position).
+  On Days 2 and 5 only "Fast kicks to ball" gets trick rest. Spins (360, 480, 540, 720, tornado)
+  count as tricks even on power days.
+- Before each exercise there is a rest as long as the longer of the two exercises' rests, and at
+  least 90 s between the warm-up and the first exercise (2 min on power days).
+- Per side work has a "Switch sides" countdown between left and right: 10 s for holds, 5 s for
+  reps. Warm-up items flow into each other without one.
+- A session or GTG set starts with a 10 s "Get ready". A timer that follows a countdown starts on
+  its own when the countdown ends; one that follows a tapped step gets a 5 s "Get ready" first.
+  The phases of a PNF round run back to back. Every countdown can be skipped or extended.
 - "Calf raise, tibialis raise 3×12 each" and "Pike lift, straddle lift" run as supersets.
 - GTG deload (week 4) keeps the first 4 slots of the day, which still covers A, B, C and D.
 - GTG uses the plan day of the session you trained today, so finishing Day 1 at 19:30 does not
@@ -112,5 +119,30 @@ Open the site in Safari, tap Share, then **Add to Home Screen**. Open it once wh
 caches itself; after that it works offline. New versions install the next time you open the app
 online (never in the middle of a session).
 
-Beeps use Web Audio, which iOS mutes when the ring/silent switch is on silent. Use **Test sound**
-on the Train screen to check.
+## Voice coach and sounds
+
+`src/lib/coach.ts` decides what is said and played; `src/lib/voice.ts` speaks through the
+browser's speech synthesis, and `src/lib/audio.ts` makes the beeps and the whistle with Web Audio.
+
+- When a countdown starts the voice says what comes next: "Rest, 2 minutes. Next: Weighted pistol.
+  Set 1 of 3, left side. 5 reps." With 10 s left it says "10 seconds", the last 3 seconds beep,
+  and a whistle starts the work. A timed step that ends gives a long beep and the next step is
+  announced. Each EMOM minute starts with the whistle and the minute's cue.
+- Settings > Voice coach turns the voice on or off and picks the voice; the speaker button on the
+  session screen mutes it too. Both are stored on the device only.
+- iOS mutes Web Audio (and may mute speech) when the ring/silent switch is on silent. Use **Test
+  sound** on the Train screen or **Test voice and whistle** in Settings to check.
+
+## Totals
+
+The Progress tab adds up what was done: kicks, 360s, 540s and 720s (split into kicks, tuck jumps
+and spin drills), jumps, time in holds and stretches, and every exercise (`src/lib/volume.ts`).
+
+- Each finished step of a timer session counts, stored with the completion as `vol`. Days marked
+  as completed, and completions logged before totals existed, count the plan's full prescription.
+- Ticked GTG slots count the set for that slot (the plan day decides the letter).
+- "Per kick" kicks count each of roundhouse, side kick and hook; standing spin kicks split their
+  reps evenly between spinning hook and 360 roundhouse; leg raise holds count each direction.
+- An EMOM counts one rep a minute (the plan's lower bound), alternating cues where it alternates.
+- The same movement adds up across months and names (`src/lib/movements.ts`): "540 to ball",
+  "EMOM: 540" and the 540 test attempts are all 540 kicks.
